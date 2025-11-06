@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Mini RPG Avancé</title>
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background-color: #111;
+  color: #eee;
+  text-align: center;
+}
+.game-container {
+  margin: 20px auto;
+  width: 650px;
+  border: 2px solid #eee;
+  padding: 20px;
+  border-radius: 10px;
+  background-color: #222;
+}
+.character, .monster {
+  display: inline-block;
+  width: 140px;
+  margin: 10px;
+  vertical-align: top;
+}
+img {
+  width: 120px;
+  height: 120px;
+  border-radius: 10px;
+}
+button {
+  margin: 5px;
+  padding: 10px;
+  font-size: 16px;
+  cursor: pointer;
+}
+.log {
+  margin-top: 20px;
+  max-height: 200px;
+  overflow-y: auto;
+  text-align: left;
+  background: #111;
+  padding: 10px;
+  border-radius: 5px;
+}
+</style>
+</head>
+<body>
+<div class="game-container">
+<h1>Mini RPG Avancé</h1>
+
+<div>
+  <label for="race-select">Choisis ta race : </label>
+  <select id="race-select" onchange="chooseRace()">
+    <option value="human">Humain</option>
+    <option value="alien">Alien</option>
+  </select>
+</div>
+
+<div>
+  <div class="character">
+    <h3>Joueur</h3>
+    <img id="player-img" src="https://via.placeholder.com/120?text=Humain" alt="Player">
+    <p>HP: <span id="player-hp">100</span></p>
+    <p>Pièces: <span id="coins">0</span></p>
+  </div>
+  <div class="monster">
+    <h3>Monstre</h3>
+    <img id="monster-img" src="https://via.placeholder.com/120?text=Monster" alt="Monster">
+    <p>HP: <span id="monster-hp">50</span></p>
+  </div>
+</div>
+
+<div>
+  <button onclick="attack('normal')">Attaque Normale</button>
+  <button onclick="attack('special')">Sort Spécial (10 pièces)</button>
+  <button onclick="usePotion()">Potion (+30 HP)</button>
+</div>
+
+<div>
+<h3>Shop</h3>
+<button onclick="buyItem('sword')">Épée (+5 attaque) - 20 pièces</button>
+<button onclick="buyItem('shield')">Bouclier (+5 défense) - 20 pièces</button>
+<button onclick="buyItem('potion')">Potion (+1) - 10 pièces</button>
+</div>
+
+<div class="log" id="combat-log">
+<h4>Log des combats:</h4>
+</div>
+
+<p>Combats restants cette heure: <span id="combat-left">10</span></p>
+</div>
+
+<script>
+// --- Variables ---
+let races = {
+  human: { hp: 100, attack: 10, defense: 5, img: "https://via.placeholder.com/120?text=Humain" },
+  alien: { hp: 80, attack: 12, defense: 3, img: "https://via.placeholder.com/120?text=Alien" }
+};
+
+let player = {};
+let monster = { hp: 50, maxHp: 50, attack: 8, defense: 3 };
+let combatsLeft = 10;
+
+// --- Choix de race ---
+function chooseRace() {
+  const race = document.getElementById("race-select").value;
+  player.hp = races[race].hp;
+  player.maxHp = races[race].hp;
+  player.attack = races[race].attack;
+  player.defense = races[race].defense;
+  player.coins = 0;
+  player.potions = 1;
+  document.getElementById("player-img").src = races[race].img;
+  log("Tu as choisi la race : " + race);
+  updateUI();
+}
+
+// --- Combat ---
+function attack(type) {
+  if (combatsLeft <= 0) {
+    log("Limite de combats atteinte, reviens dans une heure !");
+    return;
+  }
+
+  let playerDamage = 0;
+  if (type === 'normal') {
+    playerDamage = Math.max(0, player.attack - monster.defense + Math.floor(Math.random() * 5));
+  } else if (type === 'special') {
+    if (player.coins < 10) {
+      log("Pas assez de pièces pour le sort spécial !");
+      return;
+    }
+    player.coins -= 10;
+    playerDamage = Math.max(0, player.attack*2 - monster.defense + Math.floor(Math.random() * 10));
+  }
+
+  monster.hp -= playerDamage;
+  log(`Tu infliges ${playerDamage} dégâts au monstre !`);
+
+  if (monster.hp <= 0) {
+    log("Monstre vaincu !");
+    player.coins += 5 + Math.floor(Math.random() * 6);
+    if (Math.random() < 0.2) { // 20% chance boss
+      log("Boss Rare apparu ! +20 pièces !");
+      player.coins += 20;
+    }
+    resetMonster();
+    combatsLeft--;
+    updateUI();
+    return;
+  }
+
+  // Contre-attaque
+  let monsterDamage = Math.max(0, monster.attack - player.defense + Math.floor(Math.random() * 5));
+  player.hp -= monsterDamage;
+  log(`Le monstre t'inflige ${monsterDamage} dégâts !`);
+
+  if (player.hp <= 0) {
+    log("Tu as été vaincu !");
+    player.hp = player.maxHp;
+    player.coins = Math.max(0, player.coins - 5);
+    resetMonster();
+    combatsLeft = 10;
+  }
+
+  combatsLeft--;
+  updateUI();
+}
+
+// --- Potion ---
+function usePotion() {
+  if (player.potions <= 0) {
+    log("Pas de potions restantes !");
+    return;
+  }
+  player.hp = Math.min(player.maxHp, player.hp + 30);
+  player.potions--;
+  log("Potion utilisée, +30 HP !");
+  updateUI();
+}
+
+// --- Shop ---
+function buyItem(item) {
+  if (item === 'sword' && player.coins >= 20) {
+    player.attack += 5;
+    player.coins -= 20;
+    log("Épée achetée ! +5 attaque");
+  } else if (item === 'shield' && player.coins >= 20) {
+    player.defense += 5;
+    player.coins -= 20;
+    log("Bouclier acheté ! +5 défense");
+  } else if (item === 'potion' && player.coins >= 10) {
+    player.potions++;
+    player.coins -= 10;
+    log("Potion achetée !");
+  } else {
+    log("Pas assez de pièces !");
+  }
+  updateUI();
+}
+
+// --- Reset Monstre ---
+function resetMonster() {
+  monster.hp = monster.maxHp + Math.floor(Math.random()*20);
+  monster.attack = 8 + Math.floor(Math.random()*3);
+  monster.defense = 3 + Math.floor(Math.random()*2);
+  document.getElementById("monster-img").src = "https://via.placeholder.com/120?text=Monster";
+}
+
+// --- Log ---
+function log(msg) {
+  let logDiv = document.getElementById('combat-log');
+  logDiv.innerHTML += `<p>${msg}</p>`;
+  logDiv.scrollTop = logDiv.scrollHeight;
+}
+
+// --- Update UI ---
+function updateUI() {
+  document.getElementById('player-hp').textContent = player.hp;
+  document.getElementById('monster-hp').textContent = monster.hp;
+  document.getElementById('coins').textContent = player.coins;
+  document.getElementById('combat-left').textContent = combatsLeft;
+}
+
+chooseRace(); // Initialisation par défaut
+updateUI();
+</script>
+</body>
+</html>
